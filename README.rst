@@ -62,13 +62,15 @@ respective authors; the licenses are included in LICENSE.txt.
      * homepage: https://github.com/amoffat/sh
 
  * PyYAML
-     * location: hashdist/deps/yaml
-     * version: 3.10
+     * location: hashdist/deps/yaml{2,3}
+     * version: 3.11
      * main author: Kirill Simonov
      * license: MIT
      * homepage:  https://bitbucket.org/xi/pyyaml/
      * additional patches: (see git log on hashdist/deps/yaml):
         * http://pyyaml.org/ticket/128
+        * Patch 'yaml' to take user-readable filename
+
  * distlib
      * location: hashdist/deps/distlib
      * version: commit 5e64fd139851
