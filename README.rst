@@ -74,3 +74,10 @@ respective authors; the licenses are included in LICENSE.txt.
      * version: commit 5e64fd139851
      * authors: see distlib-CONTRIBUTORS.txt
      * homepage: https://bitbucket.org/vinay.sajip/distlib
+
+* six
+     * location: hashdist/deps/six.py
+     * version: 1.8.0
+     * main author: Benjamin Peterson
+     * license: MIT
+     * homepage: https://pypi.python.org/pypi/six/
