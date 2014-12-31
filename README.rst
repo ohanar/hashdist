@@ -83,3 +83,10 @@ respective authors; the licenses are included in LICENSE.txt.
      * main author: Benjamin Peterson
      * license: MIT
      * homepage: https://pypi.python.org/pypi/six/
+
+* numpydoc
+     * location: doc/ext/numpydoc
+     * version: 0.5
+     * main author: Pauli Virtanen
+     * license: BSD
+     * homepage: https://github.com/numpy/numpydoc

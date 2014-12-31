@@ -6,7 +6,6 @@ root_path = os.path.realpath(os.path.join(os.path.split(__file__)[0], '..', '..'
 
 # Add commander to sys.path
 sys.path.append(root_path)
-sys.path.append(os.path.join(root_path, 'doc', 'ext', 'numpydoc-0.4'))
 sys.path.append(os.path.join(root_path, 'doc', 'ext'))
 # We bundle the cloud_sptheme
 #sys.path.append(os.path.join(root_path, 'doc', 'cloud_sptheme-1.4'))

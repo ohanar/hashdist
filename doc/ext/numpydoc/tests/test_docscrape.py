@@ -1,11 +1,17 @@
 # -*- encoding:utf-8 -*-
+from __future__ import division, absolute_import, print_function
 
-import sys, os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+import sys, textwrap
 
-from docscrape import NumpyDocString, FunctionDoc, ClassDoc
-from docscrape_sphinx import SphinxDocString, SphinxClassDoc
+from numpydoc.docscrape import NumpyDocString, FunctionDoc, ClassDoc
+from numpydoc.docscrape_sphinx import SphinxDocString, SphinxClassDoc
 from nose.tools import *
+
+if sys.version_info[0] >= 3:
+    sixu = lambda s: s
+else:
+    sixu = lambda s: unicode(s, 'unicode_escape')
+
 
 doc_txt = '''\
   numpy.multivariate_normal(mean, cov, shape=None, spam=None)
@@ -25,7 +31,7 @@ doc_txt = '''\
 
          (1+2+3)/3
 
-  cov : (N,N) ndarray
+  cov : (N, N) ndarray
       Covariance matrix of the distribution.
   shape : tuple of ints
       Given a shape of, for example, (m,n,k), m*n*k samples are
@@ -41,6 +47,9 @@ doc_txt = '''\
 
       In other words, each entry ``out[i,j,...,:]`` is an N-dimensional
       value drawn from the distribution.
+  list of str
+      This is not a real return value.  It exists to test
+      anonymous return values.
 
   Other Parameters
   ----------------
@@ -63,7 +72,6 @@ doc_txt = '''\
 
   Notes
   -----
-
   Instead of specifying the full covariance matrix, popular
   approximations include:
 
@@ -131,7 +139,7 @@ def test_parameters():
     assert_equal([n for n,_,_ in doc['Parameters']], ['mean','cov','shape'])
 
     arg, arg_type, desc = doc['Parameters'][1]
-    assert_equal(arg_type, '(N,N) ndarray')
+    assert_equal(arg_type, '(N, N) ndarray')
     assert desc[0].startswith('Covariance matrix')
     assert doc['Parameters'][0][-1][-2] == '   (1+2+3)/3'
 
@@ -143,12 +151,18 @@ def test_other_parameters():
     assert desc[0].startswith('A parrot off its mortal coil')
 
 def test_returns():
-    assert_equal(len(doc['Returns']), 1)
+    assert_equal(len(doc['Returns']), 2)
     arg, arg_type, desc = doc['Returns'][0]
     assert_equal(arg, 'out')
     assert_equal(arg_type, 'ndarray')
     assert desc[0].startswith('The drawn samples')
     assert desc[-1].endswith('distribution.')
+
+    arg, arg_type, desc = doc['Returns'][1]
+    assert_equal(arg, 'list of str')
+    assert_equal(arg_type, '')
+    assert desc[0].startswith('This is not a real')
+    assert desc[-1].endswith('anonymous return values.')
 
 def test_notes():
     assert doc['Notes'][0].startswith('Instead')
@@ -165,13 +179,14 @@ def test_examples():
 
 def test_index():
     assert_equal(doc['index']['default'], 'random')
-    print doc['index']
     assert_equal(len(doc['index']), 2)
     assert_equal(len(doc['index']['refguide']), 2)
 
 def non_blank_line_by_line_compare(a,b):
-    a = [l for l in a.split('\n') if l.strip()]
-    b = [l for l in b.split('\n') if l.strip()]
+    a = textwrap.dedent(a)
+    b = textwrap.dedent(b)
+    a = [l.rstrip() for l in a.split('\n') if l.strip()]
+    b = [l.rstrip() for l in b.split('\n') if l.strip()]
     for n,line in enumerate(a):
         if not line == b[n]:
             raise AssertionError("Lines %s of a and b differ: "
@@ -196,7 +211,7 @@ mean : (N,) ndarray
 
        (1+2+3)/3
 
-cov : (N,N) ndarray
+cov : (N, N) ndarray
     Covariance matrix of the distribution.
 shape : tuple of ints
     Given a shape of, for example, (m,n,k), m*n*k samples are
@@ -212,6 +227,9 @@ out : ndarray
 
     In other words, each entry ``out[i,j,...,:]`` is an N-dimensional
     value drawn from the distribution.
+list of str
+    This is not a real return value.  It exists to test
+    anonymous return values.
 
 Other Parameters
 ----------------
@@ -220,12 +238,12 @@ spam : parrot
 
 Raises
 ------
-RuntimeError : 
+RuntimeError
     Some error
 
 Warns
 -----
-RuntimeWarning : 
+RuntimeWarning
     Some warning
 
 Warnings
@@ -307,7 +325,7 @@ of the one-dimensional normal distribution to higher dimensions.
 
            (1+2+3)/3
 
-    **cov** : (N,N) ndarray
+    **cov** : (N, N) ndarray
 
         Covariance matrix of the distribution.
 
@@ -324,25 +342,30 @@ of the one-dimensional normal distribution to higher dimensions.
         The drawn samples, arranged according to `shape`.  If the
         shape given is (m,n,...), then the shape of `out` is is
         (m,n,...,N).
-        
+
         In other words, each entry ``out[i,j,...,:]`` is an N-dimensional
         value drawn from the distribution.
+
+    list of str
+
+        This is not a real return value.  It exists to test
+        anonymous return values.
 
 :Other Parameters:
 
     **spam** : parrot
 
         A parrot off its mortal coil.
- 
+
 :Raises:
 
-    **RuntimeError** : 
+    **RuntimeError**
 
         Some error
 
 :Warns:
 
-    **RuntimeWarning** : 
+    **RuntimeWarning**
 
         Some warning
 
@@ -351,12 +374,12 @@ of the one-dimensional normal distribution to higher dimensions.
     Certain warnings apply.
 
 .. seealso::
-    
+
     :obj:`some`, :obj:`other`, :obj:`funcs`
-    
+
     :obj:`otherfunc`
         relationship
-    
+
 .. rubric:: Notes
 
 Instead of specifying the full covariance matrix, popular
@@ -403,7 +426,7 @@ standard deviation:
 [True, True]
 """)
 
-       
+
 doc2 = NumpyDocString("""
     Returns array of indices of the maximum values of along the given axis.
 
@@ -556,7 +579,8 @@ def test_unicode():
         äää
 
     """)
-    assert doc['Summary'][0] == u'öäöäöäöäöåååå'.encode('utf-8')
+    assert isinstance(doc['Summary'][0], str)
+    assert doc['Summary'][0] == 'öäöäöäöäöåååå'
 
 def test_plot_examples():
     cfg = dict(use_plots=True)
@@ -574,7 +598,7 @@ def test_plot_examples():
     Examples
     --------
     .. plot::
-    
+
        import matplotlib.pyplot as plt
        plt.plot([1,2,3],[4,5,6])
        plt.show()
@@ -594,22 +618,150 @@ def test_class_members():
         def ham(self, c, d):
             """Cheese\n\nNo cheese."""
             pass
+        @property
+        def spammity(self):
+            """Spammity index"""
+            return 0.95
+
+        class Ignorable(object):
+            """local class, to be ignored"""
+            pass
 
     for cls in (ClassDoc, SphinxClassDoc):
         doc = cls(Dummy, config=dict(show_class_members=False))
         assert 'Methods' not in str(doc), (cls, str(doc))
         assert 'spam' not in str(doc), (cls, str(doc))
         assert 'ham' not in str(doc), (cls, str(doc))
+        assert 'spammity' not in str(doc), (cls, str(doc))
+        assert 'Spammity index' not in str(doc), (cls, str(doc))
 
         doc = cls(Dummy, config=dict(show_class_members=True))
         assert 'Methods' in str(doc), (cls, str(doc))
         assert 'spam' in str(doc), (cls, str(doc))
         assert 'ham' in str(doc), (cls, str(doc))
+        assert 'spammity' in str(doc), (cls, str(doc))
 
         if cls is SphinxClassDoc:
             assert '.. autosummary::' in str(doc), str(doc)
+        else:
+            assert 'Spammity index' in str(doc), str(doc)
+
+def test_duplicate_signature():
+    # Duplicate function signatures occur e.g. in ufuncs, when the
+    # automatic mechanism adds one, and a more detailed comes from the
+    # docstring itself.
+
+    doc = NumpyDocString(
+    """
+    z(x1, x2)
+
+    z(a, theta)
+    """)
+
+    assert doc['Signature'].strip() == 'z(a, theta)'
+
+
+class_doc_txt = """
+    Foo
+
+    Parameters
+    ----------
+    f : callable ``f(t, y, *f_args)``
+        Aaa.
+    jac : callable ``jac(t, y, *jac_args)``
+        Bbb.
+
+    Attributes
+    ----------
+    t : float
+        Current time.
+    y : ndarray
+        Current variable values.
+
+    Methods
+    -------
+    a
+    b
+    c
+
+    Examples
+    --------
+    For usage examples, see `ode`.
+"""
+
+def test_class_members_doc():
+    doc = ClassDoc(None, class_doc_txt)
+    non_blank_line_by_line_compare(str(doc),
+    """
+    Foo
+
+    Parameters
+    ----------
+    f : callable ``f(t, y, *f_args)``
+        Aaa.
+    jac : callable ``jac(t, y, *jac_args)``
+        Bbb.
+
+    Examples
+    --------
+    For usage examples, see `ode`.
+
+    Attributes
+    ----------
+    t : float
+        Current time.
+    y : ndarray
+        Current variable values.
+
+    Methods
+    -------
+    a
+
+    b
+
+    c
+
+    .. index::
+
+    """)
+
+def test_class_members_doc_sphinx():
+    doc = SphinxClassDoc(None, class_doc_txt)
+    non_blank_line_by_line_compare(str(doc),
+    """
+    Foo
+
+    :Parameters:
+
+        **f** : callable ``f(t, y, *f_args)``
+
+            Aaa.
+
+        **jac** : callable ``jac(t, y, *jac_args)``
+
+            Bbb.
+
+    .. rubric:: Examples
+
+    For usage examples, see `ode`.
+
+    .. rubric:: Attributes
+
+    ===  ==========
+      t  (float) Current time.
+      y  (ndarray) Current variable values.
+    ===  ==========
+
+    .. rubric:: Methods
+
+    ===  ==========
+      a
+      b
+      c
+    ===  ==========
+
+    """)
 
 if __name__ == "__main__":
     import nose
     nose.run()
-
