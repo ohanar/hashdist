@@ -7,8 +7,8 @@ This module provides utility functions around colorization.
 EXAMPLES::
 
     >>> from hashdist.util.ansi_color import color
-    >>> color.red('hello')    # no ansi sequences since doctest output is redirected
-    'hello'
+    >>> color.red('hello')
+    '\x1b[31;01mhello\x1b[39;49;00m'
 """
 
 import os
