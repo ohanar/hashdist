@@ -50,7 +50,7 @@ class PackageSpec(object):
         package_parameters = defaultdict(str, profile.parameters)
         package_parameters.update(profile.packages.get(name, {}))
         package_parameters['package'] = name
-        from package_loader import PackageLoader
+        from .package_loader import PackageLoader
         loader = PackageLoader(name, package_parameters,
                                load_yaml=profile.load_package_yaml)
         return PackageSpec(name, loader.stages_topo_ordered(),
@@ -143,7 +143,7 @@ class PackageSpec(object):
         """
         build_script = self.assemble_build_script(ctx)
         files = {}
-        for to_name, from_name in ctx._bundled_files.iteritems():
+        for to_name, from_name in ctx._bundled_files.items():
             p = profile.find_package_file(self.name, from_name)
             if p is None:
                 raise ProfileError(from_name, 'file "%s" not found' % from_name)

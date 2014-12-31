@@ -20,7 +20,7 @@ class DebianHostPackages(HostPackages):
         try:
             # Invalidate cache if host system package state has changed
             mtime = os.stat('/var/lib/dpkg/status').st_mtime
-        except OSError, e:
+        except OSError as e:
             raise WrongHostTypeError('Not a Debian-based system')
         if cache.get(_CACHE_DOMAIN, 'mtime', None) != mtime:
             logger.debug('Debian package state changed, invalidating cache')
@@ -35,7 +35,7 @@ class DebianHostPackages(HostPackages):
             try:
                 sh.dpkg_query('-h')
                 sh.apt_cache('-h')
-            except sh.CommandNotFound, e:
+            except sh.CommandNotFound as e:
                 raise WrongHostTypeError('Not a Debian-based system')
                 result = False
             else:
@@ -48,7 +48,7 @@ class DebianHostPackages(HostPackages):
         try:
             out = sh.dpkg_query('-W', '-f', '${Status}', pkgname)
             installed  = (str(out) == 'install ok installed')
-        except sh.ErrorReturnCode, e:
+        except sh.ErrorReturnCode as e:
             installed = False
         return installed
 
@@ -85,7 +85,7 @@ class DebianHostPackages(HostPackages):
                 m = _SHA1.match(line.strip())
                 if m:
                     return 'deb:' + m.group(1)
-        except sh.ErrorReturnCode, e:
+        except sh.ErrorReturnCode as e:
             raise UnknownPackageError(pkgname)
 
     def get_system_description(self):

@@ -87,7 +87,7 @@ For doctesting only, revert back to the nose logging handlers::
 
 import logging
 import os
-from ansi_color import want_color, color, monochrome
+from .ansi_color import want_color, color, monochrome
 
 
 class LogConfigurationStore(object):
@@ -182,15 +182,14 @@ def _configure_logging_from_yaml(filename):
     filename : str
         The name of the YAML file
     """
-    from hashdist.deps import yaml
+    from ..deps import yaml
     with open(filename, 'r') as f:
         config_dict = yaml.load(f)
-    from hashdist.deps.py26_dictconfig import dictConfig
-    #try:
-    #    from logging.config import dictConfig
-    #except ImportError:
-    #    # Python 2.6
-    #    from hashdist.deps.py26_dictconfig import dictConfig
+    try:
+        from logging.config import dictConfig
+    except ImportError:
+        # Python 2.6
+        from ..deps.py26_dictconfig import dictConfig
     try:
         dictConfig(config_dict)
     except Exception as err:

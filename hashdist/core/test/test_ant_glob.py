@@ -14,7 +14,7 @@ def makefiles(lst):
         dirname, basename = os.path.split(x)
         if dirname != '' and not os.path.exists(dirname):
             os.makedirs(dirname)
-        with file(x, 'w') as f:
+        with open(x, 'w') as f:
             pass
 
 def test_basic():
@@ -32,7 +32,7 @@ def test_basic():
                 assert sorted(abs_expected) == sorted(ant_iglob(pattern, d))
                 # check with absolute glob
                 assert sorted(abs_expected) == sorted(ant_iglob(pjoin(d, pattern), not_d))
-        
+
         yield (check, ['a0/b0/c0/d0.txt'],
                'a0/b0/c0/d0.txt')
         yield (check, ['a0/b1/c1/d0.txt', 'a0/b0/c0/d0.txt'],

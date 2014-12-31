@@ -27,7 +27,7 @@ def hit(*args, **kw):
 
 def test_symlinks():
     with utils.temp_working_dir() as d:
-        with file('build.json', 'w') as f:
+        with open('build.json', 'w') as f:
             f.write('''\
             {
               "section1" : {

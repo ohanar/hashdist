@@ -64,9 +64,7 @@ def retry(max_tries=3, delay=1, backoff=2, exceptions=(Exception,),
         @wraps(f)
         def f_retry(*args, **kwargs):
             my_delay = delay
-            tries = range(max_tries)
-            tries.reverse()
-            for tries_remaining in tries:
+            for tries_remaining in reversed(range(max_tries)):
                 try:
                    return f(*args, **kwargs)
                 except exceptions as e:

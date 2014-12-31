@@ -7,7 +7,7 @@ except ImportError:
 
 
 def fetch_parameters_from_json(filename, key):
-    with file(filename) as f:
+    with open(filename) as f:
         doc = json.load(f)
     if key in ('', '/'):
         return doc

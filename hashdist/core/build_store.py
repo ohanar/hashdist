@@ -151,7 +151,9 @@ from .fileutils import silent_unlink, robust_rmtree, silent_makedirs, gzip_compr
 from .fileutils import rmtree_write_protected, atomic_symlink, realpath_to_symlink, allow_writes
 from . import run_job
 
-from hashdist.util.logger_setup import log_to_file, getLogger
+from ..util.logger_setup import log_to_file, getLogger
+
+from ..deps.six import reraise
 
 
 class BuildSpec(object):
@@ -392,7 +394,7 @@ class BuildStore(object):
         path = pjoin(self.artifact_root, build_spec.short_artifact_id)
         try:
             os.makedirs(path)
-        except OSError, e:
+        except OSError as e:
             if e.errno == errno.EEXIST:
                 self._log_artifact_collision(path)
             raise
@@ -412,7 +414,7 @@ class BuildStore(object):
         while True:
             try:
                 os.makedirs(build_dir)
-            except OSError, e:
+            except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise
             else:
@@ -434,14 +436,14 @@ class BuildStore(object):
     def serialize_build_spec(self, build_spec, target_dir):
         fname = pjoin(target_dir, 'build.json')
         with allow_writes(target_dir):
-            with file(fname, 'w') as f:
+            with open(fname, 'w') as f:
                 json.dump(build_spec.doc, f, **json_formatting_options)
                 f.write('\n')
         write_protect(fname)
 
     def _encode_symlink(self, symlink):
         """Format of HashDist-managed entries in gc_roots directory; an underscore + base64"""
-        return '_' + base64.b64encode(symlink).replace('=', '-')
+        return '_' + base64.b64encode(symlink.encode('utf-8')).decode('ascii').replace('=', '-')
 
     def create_symlink_to_artifact(self, artifact_id, symlink_target):
         """Creates a symlink to an artifact (usually a 'profile')
@@ -631,12 +633,14 @@ class ArtifactBuilder(object):
                                 temp_dir=job_tmp_dir, debug=self.debug)
             except:
                 exc_type, exc_value, exc_tb = sys.exc_info()
-                # Python 2 'wrapped exception': We raise an exception with the same traceback
+                # Python 'wrapped exception': We raise an exception with the same traceback
                 # but changing the type, and embedding the original type name in the message
                 # string. This is primarily done in order to communicate the build_dir to
                 # the caller
-                raise BuildFailedError("%s: %s" % (exc_type.__name__, exc_value), build_dir,
-                                       (exc_type, exc_value, exc_tb)), None, exc_tb
+                reraise(BuildFailedError,
+                        BuildFailedError("%s: %s" % (exc_type.__name__, exc_value),
+                            build_dir, (exc_type, exc_value, exc_tb)),
+                        exc_tb)
         self.logger.debug('Stop log output to file %s', log_filename)
         log_gz_filename = pjoin(artifact_dir, 'build.log.gz')
         with allow_writes(artifact_dir):

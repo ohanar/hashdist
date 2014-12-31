@@ -9,6 +9,8 @@ import hashlib
 import base64
 import struct
 
+from ..deps.six import string_types, text_type, binary_type
+
 hash_type = hashlib.sha256
 
 def check_no_floating_point(doc):
@@ -17,14 +19,27 @@ def check_no_floating_point(doc):
     if isinstance(doc, float):
         raise TypeError("floating-point number not allowed in document")
     elif isinstance(doc, dict):
-        for k, v in doc.iteritems():
+        for k, v in doc.items():
             check_no_floating_point(k)
             check_no_floating_point(v)
     elif isinstance(doc, list):
         for item in doc:
             check_no_floating_point(item)
-    elif isinstance(doc, (int, bool, basestring)) or doc is None:
+    elif isinstance(doc, (int, bool, string_types)) or doc is None:
         pass
+
+def decode_bytes(doc):
+    """Decodes bytes as utf-8 strings
+    """
+    res = doc
+    if isinstance(doc, binary_type):
+        return doc.decode('utf-8')
+    elif isinstance(doc, list):
+        for i, item in enumerate(doc):
+            doc[i] = decode_bytes(item)
+    elif isinstance(doc, dict):
+        res = dict(map(decode_bytes, kv) for kv in doc.items())
+    return res
 
 def hash_document(doctype, doc):
     """
@@ -46,9 +61,10 @@ def hash_document(doctype, doc):
 
     """
     check_no_floating_point(doc)
-    serialized = json.dumps(doc, indent=None, sort_keys=True, separators=(',', ':'), encoding='utf-8',
-                            ensure_ascii=True, allow_nan=False)
-    h = hashlib.sha256(doctype + '|')
+    doc = decode_bytes(doc)
+    serialized = json.dumps(doc, indent=None, sort_keys=True, separators=(',', ':'),
+                            ensure_ascii=True, allow_nan=False).encode('utf-8')
+    h = hashlib.sha256(doctype.encode('utf-8') + b'|')
     h.update(serialized)
     return format_digest(h)
 
@@ -57,12 +73,12 @@ def prune_nohash(doc):
     Returns a copy of the document with every key/value-pair whose key
     starts with ``'nohash_'`` is removed.
     """
-    if isinstance(doc, (int, bool, float, basestring)) or doc is None:
+    if isinstance(doc, (int, bool, float, string_types, binary_type)) or doc is None:
         r = doc
     elif isinstance(doc, dict):
         r = {}
-        for key, value in doc.iteritems():
-            assert isinstance(key, basestring)
+        for key, value in doc.items():
+            assert isinstance(key, string_types)
             if not key.startswith('nohash_'):
                 r[key] = prune_nohash(value)
     elif isinstance(doc, (list, tuple)):
@@ -71,11 +87,6 @@ def prune_nohash(doc):
         raise TypeError('document contains illegal type %r' % type(doc))
     return r
 
-
-
-
-def argsort(seq):
-    return sorted(range(len(seq)), key=seq.__getitem__)
 
 class DocumentSerializer(object):
     """
@@ -146,56 +157,63 @@ class DocumentSerializer(object):
     def update(self, x):
         # note: w.update does hashing of str/buffer, self.update recurses to treat object
         w = self._wrapped
-        if isinstance(x, (bytes, str)):
+        def record_size(object):
+            size = text_type(len(object)).encode('utf-8')
+            w.update(size+b':')
+
+        if isinstance(x, binary_type):
             # this one matters when streaming so put it first
-            w.update('B%d:' % len(x))
+            w.update(b'B')
+            record_size(x)
             w.update(x)
-        elif isinstance(x, unicode):
-            self.update(x.encode('UTF-8'))
+        elif isinstance(x, text_type):
+            self.update(x.encode('utf-8'))
         elif isinstance(x, float):
             s = struct.pack('<d', x)
             assert len(s) == 8
-            w.update('F')
+            w.update(b'F')
             w.update(s)
         elif isinstance(x, int):
             # need to provide for arbitrary size...
-            s = str(x)
-            w.update('I%d:' % len(s))
+            s = text_type(x).encode('utf-8')
+            w.update(b'I')
+            record_size(s)
             w.update(s)
         elif isinstance(x, (list, tuple)):
-            w.update('L%d:' % len(x))
+            w.update(b'L')
+            record_size(x)
             for child in x:
                 self.update(child)
         elif isinstance(x, dict):
-            w.update('D%d:' % len(x))
-            keys = x.keys()
-            indices = argsort(keys)
-            for i in indices:
-                if not isinstance(keys[i], (str, unicode)):
-                    raise NotImplementedError('hashing of dict with non-string key')
-                self.update(keys[i])
-                self.update(x[keys[i]])
+            w.update(b'D')
+            record_size(x)
+            try:
+                sorted_items = sorted(x.items(), key=lambda kv: kv[0])
+            except TypeError:
+                raise NotImplementedError('hashing of dict with non-string key')
+            for k, v in sorted_items:
+                self.update(k)
+                self.update(v)
         elif x is True:
-            w.update('T')
+            w.update(b'T')
         elif x is False:
-            w.update('F')
+            w.update(b'F')
         elif x is None:
-            w.update('N')
+            w.update(b'N')
         elif hasattr(x, 'get_secure_hash'):
             x_type, h = x.get_secure_hash()
-            w.update('O%d:' % len(x_type))
+            w.update(b'O')
+            record_size(x_type)
             w.update(x_type)
-            w.update('%d:' % len(h))
+            record_size(h)
             w.update(h)
         elif isinstance(x, set):
             raise TypeError('sets not supported') # more friendly error
         else:
             # treated same as first case, but we can only fall back to
-            # acquiring the buffer interface after we've tried the
+            # acquiring the memoryview interface after we've tried the
             # rest
-            buf = buffer(x)
-            w.update('B%d:' % len(buf))
-            w.update(buf)
+            self.update(memoryview(x).tobytes())
 
 class Hasher(DocumentSerializer):
     """
@@ -233,7 +251,7 @@ def format_digest(hasher):
         An object with a `digest` method (a :class:`Hasher` or
         an object from the :mod:`hashlib` module)
     """
-    return base64.b32encode(hasher.digest()[:20]).lower()
+    return base64.b32encode(hasher.digest()[:20]).decode('ascii').lower()
 
 
 class HashingWriteStream(object):

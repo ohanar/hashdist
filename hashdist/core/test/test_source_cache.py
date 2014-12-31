@@ -4,7 +4,6 @@ import tempfile
 import shutil
 import subprocess
 import hashlib
-from StringIO import StringIO
 import stat
 import errno
 import logging
@@ -19,7 +18,9 @@ from ..hasher import Hasher, format_digest
 
 from .utils import temp_dir, working_directory, VERBOSE, logger, assert_raises
 from . import utils
-from hashdist.util.logger_fixtures import log_capture
+from ...util.logger_fixtures import log_capture
+
+from ...deps.six import BytesIO
 
 from nose.tools import eq_
 
@@ -76,7 +77,7 @@ def make_mock_tarball():
         with closing(tarfile.open(filename, 'w:gz')) as f:
             info = tarfile.TarInfo(attackname)
             info.size = len('hello')
-            with open(pjoin(mock_container_dir, 'tmp')) as f2:
+            with open(pjoin(mock_container_dir, 'tmp'), 'rb') as f2:
                 f.addfile(info, f2)
 
 def make_mock_zipfile():
@@ -87,7 +88,7 @@ def make_mock_zipfile():
         # a/b is common prefix and should be stripped on unpacking
         z.writestr(pjoin('a', 'b', '0', 'README'), 'file contents')
         z.writestr(pjoin('a', 'b', '1', 'README'), 'file contents')
-    with open(mock_zipfile) as f:
+    with open(mock_zipfile, 'rb') as f:
         mock_zipfile_hash = 'zip:' + format_digest(hashlib.sha256(f.read()))
 
 
@@ -98,14 +99,15 @@ def git(*args, **kw):
     git_env = dict(os.environ)
     git_env['CWD'] = repo
     p = subprocess.Popen(['git'] + list(args), env=git_env, stdout=subprocess.PIPE,
-                         stderr=None if VERBOSE else subprocess.PIPE)
+                         stderr=None if VERBOSE else subprocess.PIPE,
+                         universal_newlines=True)
     out, err = p.communicate()
     if p.returncode != 0:
         raise RuntimeError('git call %r failed with code %d' % (args, p.returncode))
     return out
 
 def cat(filename, what):
-    with file(filename, 'w') as f:
+    with open(filename, 'w') as f:
         f.write(what)
 
 def make_mock_git_repo(submodules=None):
@@ -166,9 +168,9 @@ def test_tarball():
         assert key == mock_tarball_hash
         with temp_dir() as d:
             sc.unpack(key, d)
-            with file(pjoin(d, '0', 'README')) as f:
+            with open(pjoin(d, '0', 'README')) as f:
                 assert f.read() == 'file contents'
-            with file(pjoin(d, '1', 'README')) as f:
+            with open(pjoin(d, '1', 'README')) as f:
                 assert f.read() == 'file contents'
 
 
@@ -178,9 +180,9 @@ def test_zipfile():
         assert key == mock_zipfile_hash
         with temp_dir() as d:
             sc.unpack(key, d)
-            with file(pjoin(d, '0', 'README')) as f:
+            with open(pjoin(d, '0', 'README')) as f:
                 assert f.read() == 'file contents'
-            with file(pjoin(d, '1', 'README')) as f:
+            with open(pjoin(d, '1', 'README')) as f:
                 assert f.read() == 'file contents'
 
 
@@ -202,20 +204,21 @@ def test_stable_archive_hash():
 def test_git_fetch_git():
     with temp_source_cache() as sc:
         key = sc.fetch_git(mock_git_repo, 'master', 'foo')
-        assert key == 'git:%s' % mock_git_commit
+        assert key == 'git:' + mock_git_commit
 
         devel_key = sc.fetch_git(mock_git_repo, 'devel', 'foo')
-        assert devel_key == 'git:%s' % mock_git_devel_branch_commit
+        assert devel_key == 'git:' + mock_git_devel_branch_commit
 
         with temp_dir() as d:
             sc.unpack(key, pjoin(d, 'foo'))
-            with file(pjoin(d, 'foo', 'README')) as f:
+            with open(pjoin(d, 'foo', 'README')) as f:
                 assert f.read() == 'First revision'
             # The unpack should be a git checkout positioned in the right commit
             with working_directory(pjoin(d, 'foo')):
                 assert os.path.isdir('.git')
                 p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE,
-                                     stderr=None if VERBOSE else subprocess.PIPE)
+                                     stderr=None if VERBOSE else subprocess.PIPE,
+                                     universal_newlines=True)
                 out, err = p.communicate()
                 assert p.wait() == 0
                 assert out.strip() == mock_git_commit
@@ -261,9 +264,9 @@ def test_able_to_fetch_twice():
     # With 'master' rev
     with temp_source_cache() as sc:
         result = sc.fetch_git(mock_git_repo, 'master', 'foo')
-        assert result == 'git:%s' % mock_git_commit
+        assert result == 'git:' + mock_git_commit
         result = sc.fetch_git(mock_git_repo, 'master', 'foo')
-        assert result == 'git:%s' % mock_git_commit
+        assert result == 'git:' + mock_git_commit
 
 def test_hash_check():
     with temp_source_cache() as sc:
@@ -285,7 +288,7 @@ def test_corrupt_store():
         key = sc.fetch_archive('file:' + mock_tarball)
         pack_filename = pjoin(sc.cache_path, 'packs', 'tar.gz', mock_tarball_hash.split(':')[1])
         os.chmod(pack_filename, stat.S_IRUSR | stat.S_IWUSR)
-        with file(pack_filename, 'w') as f:
+        with open(pack_filename, 'w') as f:
             f.write('corrupt archive')
         with temp_dir() as d:
             with assert_raises(CorruptSourceCacheError):
@@ -316,7 +319,7 @@ def test_put():
         key = sc.put({'foofile': 'the contents'})
         with temp_dir() as d:
             sc.unpack(key, d)
-            with file(pjoin(d, 'foofile')) as f:
+            with open(pjoin(d, 'foofile')) as f:
                 assert f.read() == 'the contents'
 
 def test_simple_file_url_re():
@@ -336,12 +339,12 @@ def test_hdist_pack():
              ('bar', 'contains bar'),
              ('a/b', 'in a subdir'),
              ('a/c', 'also in subdir')]
-    stream = StringIO()
+    stream = BytesIO()
     key = hit_pack(files, stream)
     pack = stream.getvalue()
     assert key == 'files:ruwkpei2ot2fp77myn2n2n4ttefuabab'
     assert hit_pack(files[::-1]) == key
-    unpacked_files = hit_unpack(StringIO(pack), key)
+    unpacked_files = hit_unpack(BytesIO(pack), key)
     assert sorted(files) == sorted(unpacked_files)
 
 def test_scatter_files():
@@ -355,13 +358,13 @@ def test_scatter_files():
         assert sorted(os.listdir(d)) == ['a', 'bar', 'foo']
         assert sorted(os.listdir(pjoin(d, 'a'))) == ['b', 'c', 'x']
         assert sorted(os.listdir(pjoin(d, 'a', 'x'))) == ['y']
-        with file(pjoin(d, 'a', 'b')) as f:
+        with open(pjoin(d, 'a', 'b')) as f:
             assert f.read() == 'in a subdir'
 
         # duplicate file error
         try:
             scatter_files(files, d)
-        except OSError, e:
+        except OSError as e:
             assert e.errno == errno.EEXIST
         else:
             assert False

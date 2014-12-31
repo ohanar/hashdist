@@ -4,7 +4,7 @@ from os.path import join as pjoin
 from .. import profile
 from .. import package
 
-from hashdist.util.logger_setup import getLogger
+from ...util.logger_setup import getLogger
 null_logger = getLogger('null_logger')
 
 

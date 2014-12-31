@@ -20,7 +20,9 @@ def gitify(dir):
         subprocess.check_call(['git', 'init'], stdout=open(os.devnull, 'wb'))
         subprocess.check_call(['git', 'add', '.'], stdout=open(os.devnull, 'wb'))
         subprocess.check_call(['git', 'commit', '-m', 'Initial commit'], stdout=open(os.devnull, 'wb'))
-        p = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(['git', 'rev-parse', 'HEAD'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True)
         out, err = p.communicate()
         commit = out.strip()
         assert p.wait() == 0

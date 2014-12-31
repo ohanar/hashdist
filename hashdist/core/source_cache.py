@@ -89,7 +89,6 @@ import re
 import sys
 import subprocess
 import tempfile
-import urllib2
 import json
 import shutil
 import hashlib
@@ -98,13 +97,15 @@ import errno
 import stat
 from timeit import default_timer as clock
 import contextlib
-import urlparse
 from contextlib import closing
 
 from .common import working_directory
 from .hasher import hash_document, format_digest, HashingReadStream, HashingWriteStream
 from .fileutils import silent_makedirs
 from .decorators import retry
+
+from ..deps.six.moves import urllib
+from ..deps.six import binary_type, BytesIO, PY2
 
 pjoin = os.path.join
 
@@ -147,7 +148,7 @@ class ProgressBar(object):
         actual_size ... the current size of the downloading file
         """
         time_delta = clock() - self._t1
-        f1 = self._bar_length * current_size / self._total_size
+        f1 = self._bar_length * current_size // self._total_size
         f2 = self._bar_length - f1
         percent = 100. * current_size / self._total_size
         if time_delta == 0:
@@ -189,7 +190,7 @@ class ProgressSpinner(object):
 def mkdir_if_not_exists(path):
     try:
         os.mkdir(path)
-    except OSError, e:
+    except OSError as e:
         if e.errno != errno.EEXIST:
             raise
 
@@ -369,7 +370,7 @@ class SourceCache(object):
         """
         if not os.path.exists(target_path):
             os.makedirs(target_path)
-        if not ':' in key:
+        if ':' not in key:
             raise ValueError("Key must be on form 'type:hash'")
         type, hash = key.split(':')
         handler = self._get_handler(type)
@@ -395,7 +396,8 @@ class GitSourceCache(object):
         self.logger.info('running: %s' % cmd)
         p = subprocess.Popen(cmd, env=env,
                              stdout=subprocess.PIPE, stdin=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
+                             stderr=subprocess.PIPE,
+                             universal_newlines=True)
         out, err = p.communicate()
         return p.returncode, out, err
 
@@ -448,7 +450,7 @@ class GitSourceCache(object):
     def _resolve_remote_rev(self, repo_name, repo_url, rev):
         # Resolve the rev (if it is a branch/tag) to a commit hash
         p = self.checked_git(repo_name, 'ls-remote', repo_url, rev)
-        lines = str(p).splitlines()
+        lines = p.splitlines()
         if len(lines) == 0:
             msg = "no remote head '%s' found in git repo %s" % (rev, repo_url)
             self.logger.error(msg)
@@ -527,7 +529,7 @@ class GitSourceCache(object):
         self._mark_commit_as_in_use(repo_name, commit)  # Create a branch so that 'git gc' doesn't collect it
         self._fetch_submodules(repo_name, repo_url, commit)
 
-        return 'git:%s' % commit
+        return 'git:' + commit
 
     def unpack(self, type, hash, target_path):
         assert type == 'git'
@@ -536,7 +538,7 @@ class GitSourceCache(object):
         # we simply iterate through all git repos
         try:
             repo_names = os.listdir(self.repo_path)
-        except OSError, e:
+        except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
             repo_names = []
@@ -630,7 +632,7 @@ class GitSourceCache(object):
                 self.logger.error(msg)
                 raise RuntimeError(msg)
             # safely turn relative URLs into absolute URLs (idempotent on absolute URLs)
-            absolute_submod_url = urlparse.urljoin(repo_url+'/', submod['url'])
+            absolute_submod_url = urllib.parse.urljoin(repo_url+'/', submod['url'])
             self.fetch_git(absolute_submod_url, rev=None, repo_name=submod['name'], commit=commit_hash)
 
 
@@ -669,19 +671,19 @@ class ArchiveSourceCache(object):
         use_urllib = not SIMPLE_FILE_URL_RE.match(url)
         if not use_urllib:
             try:
-                stream = open(url[len('file:'):])
+                stream = open(url[len('file:'):], 'rb')
             except IOError as e:
                 raise SourceNotFoundError(str(e))
         else:
             # Make request.
             sys.stderr.write('Downloading %s...\n' % url)
             try:
-                stream = urllib2.urlopen(url)
-            except urllib2.HTTPError, e:
+                stream = urllib.request.urlopen(url)
+            except urllib.error.HTTPError as e:
                 msg = "urllib failed to download (code: %d): %s" % (e.code, url)
                 self.logger.error(msg)
                 raise RemoteFetchError(msg)
-            except urllib2.URLError, e:
+            except urllib.error.URLError as e:
                 msg = "urllib failed to download (reason: %s): %s" % (e.reason, url)
                 self.logger.error(msg)
                 raise RemoteFetchError(msg)
@@ -762,7 +764,7 @@ class ArchiveSourceCache(object):
             if not found:
                 found = self.fetch_from_mirrors(type, expected_hash)
             if found:
-                return '%s:%s' % (type, expected_hash)
+                return type + ':' + expected_hash
         return self._download_archive(url, type, expected_hash)
 
     def _download_archive(self, url, type, expected_hash):
@@ -779,7 +781,7 @@ class ArchiveSourceCache(object):
             os.rename(temp_file, self.get_pack_filename(type, hash))
         finally:
             silent_unlink(temp_file)
-        return '%s:%s' % (type, hash)
+        return type + ':' + hash
 
     def put(self, files):
         if isinstance(files, dict):
@@ -788,7 +790,7 @@ class ArchiveSourceCache(object):
         type, hash = key.split(':')
         pack_filename = self.get_pack_filename(type, hash)
         if not os.path.exists(pack_filename):
-            with file(pack_filename, 'w') as f:
+            with open(pack_filename, 'wb') as f:
                 hit_pack(files, f)
         return key
 
@@ -796,21 +798,21 @@ class ArchiveSourceCache(object):
         infile = self.open_file(type, hash)
         with infile:
             if type == 'files':
-                files = hit_unpack(infile, 'files:%s' % hash)
+                files = hit_unpack(infile, 'files:' + hash)
                 scatter_files(files, target_dir)
             else:
                 try:
                     create_archive_handler(type).unpack(infile, target_dir, hash)
-                except SourceCacheError, e:
+                except SourceCacheError as e:
                     self.logger.error(str(e))
                     raise
 
     def open_file(self, type, hash):
         try:
-            f = file(self.get_pack_filename(type, hash))
-        except IOError, e:
+            f = open(self.get_pack_filename(type, hash), 'rb')
+        except IOError as e:
             if e.errno == errno.ENOENT:
-                raise KeyNotFoundError("%s:%s" % (type, hash))
+                raise KeyNotFoundError(type + ':' + hash)
         return f
 
     #
@@ -833,7 +835,7 @@ def common_path_prefix(paths):
     common_prefix = paths[0].split(sep)[:-1]
     for path in paths[1:]:
         prefix = path.split(sep)[:-1]
-        if len(prefix) < common_prefix:
+        if len(prefix) < len(common_prefix):
             common_prefix = common_prefix[:len(prefix)]
         for i, (this_part, common_part) in enumerate(zip(prefix, common_prefix)):
             if this_part != common_part:
@@ -884,11 +886,10 @@ class TarballHandler(object):
                 archive.extractall(target_dir, members)
 
     def tarfileobj_from_name(self, filename):
-        return open(filename, 'r');
+        return open(filename, 'rb');
 
     def tarfileobj_from_data(self, archive_data):
-        from StringIO import StringIO
-        return StringIO(archive_data)
+        return BytesIO(archive_data)
 
 
 class TarGzHandler(TarballHandler):
@@ -905,21 +906,23 @@ class TarBz2Handler(TarballHandler):
 class TarXzHandler(TarballHandler):
     type = 'tar.xz'
     exts = ['tar.xz']
-    read_mode = 'r'
+    read_mode = 'r:xz'
 
-    # XXX: tarfile has built-in 'r:xz' support only in Python 3,
-    # XXX: so we use lzma module for Python 2 compatibility.
+    if PY2:
+        # tarfile has built-in 'r:xz' support only in Python 3,
+        # so we use lzma module for Python 2 compatibility.
 
-    def tarfileobj_from_name(self, filename):
-        import lzma
-        return lzma.LZMAFile(filename)
+        read_mode = 'r'
 
-    def tarfileobj_from_data(self, archive_data):
-        # XXX: tarfile has built-in 'r:xz' support only in Python 3, so we use lzma module
-        # XXX: lzma.open() and lzma.LZMAFile() accept only file names, so we uncompress in memory
-        import lzma
-        from StringIO import StringIO
-        return StringIO(lzma.LZMADecompressor().decompress(archive_data))
+        def tarfileobj_from_name(self, filename):
+            import lzma
+            return lzma.LZMAFile(filename)
+
+        def tarfileobj_from_data(self, archive_data):
+            # tarfile has built-in 'r:xz' support only in Python 3, so we use lzma module
+            # lzma.open() and lzma.LZMAFile() accept only file names, so we uncompress in memory
+            import lzma
+            return BytesIO(lzma.LZMADecompressor().decompress(archive_data))
 
 class ZipHandler(object):
     type = 'zip'
@@ -931,12 +934,11 @@ class ZipHandler(object):
 
     def unpack(self, infile, target_dir, hash):
         from zipfile import ZipFile
-        from StringIO import StringIO
         # only safe mode implemented as ZipFile does random access
         archive_data = infile.read()
         if format_digest(hashlib.sha256(archive_data)) != hash:
             raise CorruptSourceCacheError("Corrupted file: '%s'" % infile.name)
-        with closing(ZipFile(StringIO(archive_data))) as f:
+        with closing(ZipFile(BytesIO(archive_data))) as f:
             infolist = f.infolist()
             if len(infolist) == 0:
                 return
@@ -988,13 +990,13 @@ def hit_pack(files, stream=None):
     (e.g., ``files:cmRX4RyxU63D9Ciq8ZAfxWGjdMMOXn2mdCwHQqM4Zjw``).
     """
     tee = HashingWriteStream(hashlib.sha256(), stream)
-    tee.write('HDSTPCK1')
+    tee.write(b'HDSTPCK1')
     files = sorted(files)
     for filename, contents in files:
         tee.write(struct.pack('<II', len(filename), len(contents)))
-        tee.write(filename)
-        tee.write(contents)
-    return 'files:%s' % format_digest(tee)
+        tee.write(filename.encode('utf-8'))
+        tee.write(contents.encode('utf-8'))
+    return 'files:' + format_digest(tee)
 
 def hit_unpack(stream, key):
     """
@@ -1022,7 +1024,7 @@ def hit_unpack(stream, key):
         raise ValueError('invalid key')
     digest = key[len('files:'):]
     tee = HashingReadStream(hashlib.sha256(), stream)
-    if tee.read(8) != 'HDSTPCK1':
+    if tee.read(8) != b'HDSTPCK1':
         raise CorruptSourceCacheError('Not an hit-pack')
     files = []
     while True:
@@ -1030,8 +1032,8 @@ def hit_unpack(stream, key):
         if not buf:
             break
         filename_len, contents_len = struct.unpack('<II', buf)
-        filename = tee.read(filename_len)
-        contents = tee.read(contents_len)
+        filename = tee.read(filename_len).decode('utf-8')
+        contents = tee.read(contents_len).decode('utf-8')
         files.append((filename, contents))
     if digest != format_digest(tee):
         raise CorruptSourceCacheError('hit-pack does not match key "%s"' % key)
@@ -1064,7 +1066,7 @@ def scatter_files(files, target_dir):
 
         # IIUC in Python 3.3+ one can do this with the 'x' file mode, but need to do it
         # ourselves currently
-        fd = os.open(pjoin(dirname, basename), os.O_EXCL | os.O_CREAT | os.O_WRONLY, 0600)
+        fd = os.open(pjoin(dirname, basename), os.O_EXCL | os.O_CREAT | os.O_WRONLY, 0o600)
         with os.fdopen(fd, 'w') as f:
             f.write(contents)
 

@@ -12,7 +12,38 @@ from ..profile import PackageYAML
 from ...formats.marked_yaml import marked_yaml_load, yaml_dump
 from ..exceptions import ProfileError, PackageError
 from nose import SkipTest
+import collections
 
+# from http://stackoverflow.com/questions/2703599/what-would-be-a-frozen-dict
+class FrozenDict(collections.Mapping):
+    def __init__(self, *args, **kwargs):
+        self._d = dict(*args, **kwargs)
+        self._hash = None
+
+    def __iter__(self):
+        return iter(self._d)
+
+    def __len__(self):
+        return len(self._d)
+
+    def __getitem__(self, key):
+        return self._d[key]
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = 0
+            for pair in self.items():
+                self._hash ^= hash(pair)
+        return self._hash
+
+def unsort(doc):
+    if isinstance(doc, dict):
+        res = FrozenDict((unsort(k), unsort(v)) for k,v in doc.items())
+    elif isinstance(doc, (tuple, list, set, frozenset)):
+        res = frozenset(unsort(v) for v in doc)
+    else:
+        res = doc
+    return res
 
 def test_topological_stage_sort():
     stages = [dict(name='z', value='z'),
@@ -223,8 +254,6 @@ def test_load_and_inherit_package():
     eq_(sorted(loader.parameters.items()),
         [('param1', 'from profile'), ('param2', 'from package defaults')])
 
-    # the below relies on an unstable ordering as the lists are not sorted, but
-    # the parent traversal happens in an (unspecified) stable order
     expected = marked_yaml_load("""\
         build_stages:
         - {handler: foo, name: __3gcv3kvebeam4h3qzok75lxxt5n3rzr7, random: anonymous}
@@ -244,7 +273,10 @@ def test_load_and_inherit_package():
         when_build_dependency:
         - {name: start, set: FOO, value: foovalue}
     """)
-    eq_(expected, loader.doc)
+    # since the lists are not sorted, and the parent traversal
+    # happens in an unstable order (for python 3.3+), we need to
+    # "unsort" before comparing
+    eq_(unsort(expected), unsort(loader.doc))
 
 def test_update_mode():
     files = {}

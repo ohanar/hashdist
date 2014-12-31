@@ -11,7 +11,7 @@ def setup():
     null_logger = logging.getLogger('null_logger')
     try:
         deb = DebianHostPackages(null_logger, null_cache)
-    except WrongHostTypeError, e:
+    except WrongHostTypeError as e:
         raise SkipTest("not on Debian")
         
 def test_deps():

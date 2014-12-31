@@ -12,7 +12,6 @@ without further notice.
 from os.path import join as pjoin
 import os
 import tempfile
-import cPickle as pickle
 import errno
 from functools import wraps
 import re
@@ -20,6 +19,8 @@ import shutil
 
 from .hasher import Hasher
 from .fileutils import silent_makedirs
+
+from ..deps.six.moves import cPickle as pickle
 
 _RAISE = object()
 
@@ -35,17 +36,17 @@ class DiskCache(object):
     making sure there's not key collisions between different uses.
 
     .. warning::
-    
+
         If two caches access the same path, domain invalidations from
         one cache will not propagate to contents in the memory cache
         of the other. This class is really only meant for very simple
         caching...
-    
+
     """
     def __init__(self, cache_path):
         self.cache_path = cache_path
         self.memory_cache = {}
-    
+
     @staticmethod
     def create_from_config(config, logger):
         """Creates a DiskCache from the settings in the configuration
@@ -58,7 +59,7 @@ class DiskCache(object):
         if not DOMAIN_RE.match(domain):
             raise ValueError('invalid domain, does not match %s' % DOMAIN_RE.pattern)
         return domain
-    
+
     def _get_obj_filename(self, domain, key):
         h = Hasher()
         h.update(key)
@@ -73,7 +74,7 @@ class DiskCache(object):
         """
         self._get_memory_cache(domain).clear()
         shutil.rmtree(pjoin(self.cache_path, domain), ignore_errors=True)
-            
+
 
     def put(self, domain, key, value, on_disk=True):
         """Puts a value to the store
@@ -122,7 +123,7 @@ class DiskCache(object):
             silent_makedirs(obj_dir)
             fd, temp_filename = tempfile.mkstemp(dir=obj_dir)
             try:
-                with os.fdopen(fd, 'w') as f:
+                with os.fdopen(fd, 'wb') as f:
                     pickle.dump(value, f, protocol=2)
                 os.rename(temp_filename, obj_filename)
             except:
@@ -155,8 +156,8 @@ class DiskCache(object):
             x = self._get_memory_cache(domain)[obj_filename]
         except KeyError:
             try:
-                f = file(obj_filename)
-            except IOError, e:
+                f = open(obj_filename, 'rb')
+            except IOError as e:
                 if e.errno != errno.ENOENT:
                     raise
                 if default is not _RAISE:

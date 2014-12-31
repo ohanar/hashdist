@@ -133,13 +133,13 @@ def postprocess_multiline_shebang(build_store, filename):
     if not os.path.isfile(filename) or os.path.islink(filename) or not is_executable(filename):
         return
 
-    with open(filename) as f:
-        if f.read(2) != '#!':
+    with open(filename, 'rb') as f:
+        if f.read(2) != b'#!':
             # no shebang
             return
 
+    with open(filename) as f:
         scriptlines = f.readlines()
-        scriptlines[0] = '#!' + scriptlines[0]
 
     try:
         mod_scriptlines = make_relative_multiline_shebang(build_store, filename, scriptlines)
@@ -197,8 +197,8 @@ def postprocess_rpath_darwin(logger, artifact_root_dir, env, filename):
     Convert absolute Mach-O dyld links to libraries in the build store to relative links
     """
 
-    print filename
-    print artifact_root_dir
+    print(filename)
+    print(artifact_root_dir)
 
     out = _check_call(logger, ['otool', '-l', filename])
 

@@ -9,7 +9,8 @@ the new stream.
 """
 
 import re
-from StringIO import StringIO
+
+from ..deps.six import StringIO
 
 class TemplatedStream(StringIO):
     """
@@ -17,7 +18,7 @@ class TemplatedStream(StringIO):
     """
 
     dbrace_re = re.compile(r'\{\{([a-zA-Z_][\w-]*)\}\}')
-    
+
     def __init__(self, stream, parameters):
         """
         Create a TemplatedStream by populating variables from the
@@ -35,9 +36,9 @@ class TemplatedStream(StringIO):
                 return str(parameters[match.group(1)])
             else:
                 return ''
-        
+
         for line in stream:
             self.write(self.dbrace_re.sub(dbrace_expand, line))
 
         self.seek(0)
-        
+

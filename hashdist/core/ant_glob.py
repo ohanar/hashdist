@@ -11,6 +11,8 @@ from os.path import join as pjoin
 
 from glob import glob
 
+from ..deps.six import string_types
+
 def ant_iglob(pattern, cwd='', include_dirs=True):
     """
     Generator that iterates over files/directories matching the pattern.
@@ -27,7 +29,7 @@ def ant_iglob(pattern, cwd='', include_dirs=True):
     Illegal patterns::
 
         foo/**.bin  # '**' can only match 0 or more entire directories
-        
+
 
     Issues
     ------
@@ -51,15 +53,15 @@ def ant_iglob(pattern, cwd='', include_dirs=True):
 
     include_dirs : bool
         Whether to include directories, or only glob files.
-    
+
     """
     def should_include(fname):
         if include_dirs:
             return True
         else:
             return os.path.isfile(fname) or os.path.islink(fname)
-        
-    if isinstance(pattern, (str, unicode)):
+
+    if isinstance(pattern, string_types):
         if pattern.startswith('/'):
             pattern = pattern[1:]
             cwd = '/'
@@ -75,7 +77,7 @@ def ant_iglob(pattern, cwd='', include_dirs=True):
 
     if len(parts) == 0:
         raise ValueError('empty glob pattern')
-    
+
     part = parts[0]
     is_last = len(parts) == 1
     if part == '**':

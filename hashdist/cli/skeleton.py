@@ -8,10 +8,10 @@ Note that pypi is case sensitive.
 """
 import json
 import os
-import urllib2
 
 from .main import register_subcommand
 from ..core import SourceCache
+from ..deps.six.moves.urllib.request import urlopen
 
 
 PACKAGE_TEMPLATE = """\
@@ -54,7 +54,7 @@ class SkeletonPypi(object):
     @staticmethod
     def run(ctx, args):
         try:
-            response = urllib2.urlopen(
+            response = urlopen(
                 'https://pypi.python.org/pypi/{}/json'.format(args.project))
         except IOError as e:
             ctx.logger.error('Error retrieving metadata: %s', e)

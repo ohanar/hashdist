@@ -16,6 +16,8 @@ from .utils import topological_sort
 from .. import core
 from .exceptions import ProfileError, PackageError
 
+from ..deps.six.moves import urllib
+from ..deps.six import string_types
 
 
 class PackageLoaderBase(object):
@@ -166,7 +168,7 @@ class PackageLoaderBase(object):
         anonymous_names = set()
         def process(stage):
             if 'name' not in stage:
-                d = dict([k,v] for k,v in stage.items() if k not in ['before', 'after'])
+                d = dict((k,v) for k,v in stage.items() if k not in ['before', 'after'])
                 stage = dict(stage)
                 name = '__' + core.hash_document('generated_stage_name', d)
                 stage['name'] = name
@@ -174,7 +176,7 @@ class PackageLoaderBase(object):
                     raise PackageError(stage, 'Stages must be distinct (use "name:" to disambiguate)')
                 anonymous_names.add(name)
             return stage
-        return map(process, self.doc.get(key, []))
+        return list(map(process, self.doc.get(key, [])))
 
     def merge_dependencies(self):
         # Merge dependencies
@@ -242,10 +244,9 @@ class PackageLoader(PackageLoaderBase):
             self.doc['sources'] = self.parameters['sources']
         elif 'github' in self.parameters:
             # profile has requested a specific commit, overriding package defaults
-            from urlparse import urlsplit
             import posixpath
             target_url = self.parameters['github']
-            split_url = urlsplit(target_url)
+            split_url = urllib.parse.urlsplit(target_url)
             git_id = posixpath.split(split_url.path)[1]
             git_repo = target_url.rsplit('/commit/')[0] + '.git'
             sources = self.doc.get('sources', None)
@@ -342,7 +343,7 @@ def normalize_stages(stages):
         for key in ['before', 'after']:
             if key not in stage:
                 stage[key] = []
-            elif isinstance(stage[key], basestring):
+            elif isinstance(stage[key], string_types):
                 stage[key] = [stage[key]]
         return stage
     return [normalize_stage(stage) for stage in stages]
@@ -422,7 +423,7 @@ def inherit_stages(descendant_stages, ancestors):
             if name not in stages:
                 raise PackageError(name, 'cannot use mode: update on an empty stage')
             x = stages[name]
-            for node_name, node_value in stage.iteritems():
+            for node_name, node_value in stage.items():
                 if node_name not in x:
                     x[node_name] = node_value
                 elif isinstance(node_value, dict):
@@ -437,7 +438,7 @@ def inherit_stages(descendant_stages, ancestors):
         else:
             raise PackageError(name, 'illegal mode: %s' % mode)
     # We don't care about order, will be topologically sorted later...
-    return stages.values()
+    return list(stages.values())
 
 
 
@@ -474,7 +475,7 @@ def recursive_process_conditional_list(lst, parameters):
     for item in lst:
         if isinstance(item, dict) and len(item) == 1:
             # lst the form [..., {'when EXPR': BODY}, ...]
-            key, value = item.items()[0]
+            key, value = next(iter(item.items()))
             m = CONDITIONAL_RE.match(key)
             if m:
                 if eval_condition(m.group(1), parameters):

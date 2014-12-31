@@ -194,7 +194,13 @@ def rmtree_write_protected(rootpath):
 
 
 def touch(filename, readonly=False):
-    open(filename, 'wa').close()
+    with os.fdopen(os.open(filename, os.O_CREAT | os.O_APPEND)) as f:
+        try:
+            os.utime(f.fileno())
+        except TypeError:
+            # fallback for python 2
+            os.utime(filename, None)
+
     if readonly:
         write_protect(filename)
 

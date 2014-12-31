@@ -14,17 +14,19 @@ The loader is based on `SafeConstructor`, i.e., the behaviour of
 
 """
 
-from hashdist.deps.yaml.error import Mark
-from hashdist.deps.yaml.composer import Composer
-from hashdist.deps.yaml.reader import Reader
-from hashdist.deps.yaml.scanner import Scanner
-from hashdist.deps.yaml.composer import Composer
-from hashdist.deps.yaml.resolver import Resolver
-from hashdist.deps.yaml.parser import Parser
-from hashdist.deps.yaml.constructor import (Constructor, BaseConstructor, SafeConstructor,
+from ..deps.yaml.error import Mark
+from ..deps.yaml.composer import Composer
+from ..deps.yaml.reader import Reader
+from ..deps.yaml.scanner import Scanner
+from ..deps.yaml.composer import Composer
+from ..deps.yaml.resolver import Resolver
+from ..deps.yaml.parser import Parser
+from ..deps.yaml.constructor import (Constructor, BaseConstructor, SafeConstructor,
                                             ConstructorError)
-from hashdist.deps.yaml import dump as _orig_yaml_dump
-from hashdist.deps import jsonschema
+from ..deps.yaml import dump as _orig_yaml_dump
+from ..deps import jsonschema
+
+from ..deps.six import PY2, string_types, text_type
 
 from .templated_stream import TemplatedStream
 
@@ -33,7 +35,7 @@ def _find_mark(doc):
     if hasattr(doc, 'start_mark'):
         return doc.start_mark
     elif isinstance(doc, dict):
-        for key, value in doc.iteritems():
+        for key, value in doc.items():
             mark = _find_mark(key) or _find_mark(value)
             if mark:
                 return mark
@@ -68,13 +70,13 @@ class ExpectedKeyMissingError(KeyError, ValidationError):
 def create_node_class(cls, name=None):
     class node_class(cls):
         def __init__(self, x, start_mark, end_mark):
-            if cls is not object:
+            if cls.__init__ is not object.__init__:
                 cls.__init__(self, x)
             self.start_mark = start_mark
             self.end_mark = end_mark
 
         def __new__(self, x, start_mark, end_mark):
-            if cls is not object:
+            if cls.__new__ is not object.__new__:
                 return cls.__new__(self, x)
             else:
                 return object.__new__(self)
@@ -84,18 +86,20 @@ def create_node_class(cls, name=None):
 
 list_node = create_node_class(list)
 int_node = create_node_class(int)
-unicode_node_base = create_node_class(unicode)
-class unicode_node(unicode_node_base):
-    # override to drop the irritating u in reprs, as it will be in Python 3 anyway
-    def __repr__(self):
-        r = unicode_node_base.__repr__(self)
-        if r.startswith('u'):
-            r = r[1:]
-        return r
+unicode_node = create_node_class(text_type)
+if PY2:
+    class unicode_node(unicode_node):
+        # override to drop the irritating u in reprs, as it will be in Python 3 anyway
+        def __repr__(self):
+            r = text_type.__repr__(self)
+            if r.startswith('u'):
+                r = r[1:]
+            return r
 
 class null_node(create_node_class(object, name='null_node')):
-    def __nonzero__(self):
+    def __bool__(self):
         return False
+    __nonzero__ = __bool__
 
     def __repr__(self):
         return "null"
@@ -145,7 +149,7 @@ class NodeConstructor(SafeConstructor):
 
     def construct_yaml_str(self, node):
         obj = SafeConstructor.construct_scalar(self, node)
-        assert isinstance(obj, unicode)
+        assert isinstance(obj, text_type)
         return unicode_node(obj, node.start_mark, node.end_mark)
 
     def construct_yaml_int(self, node):
@@ -208,7 +212,7 @@ def raw_tree(doc):
     Converts a document consisting of subclasses of
     basestring/dict/list/etc. to raw str/dict/list/etc.
     """
-    if isinstance(doc, basestring):
+    if isinstance(doc, string_types):
         return str(doc)
     elif isinstance(doc, int):
         return int(doc)

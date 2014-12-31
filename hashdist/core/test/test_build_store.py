@@ -120,7 +120,7 @@ def test_basic(tempdir, sc, bldr, config):
     assert bldr.is_present(spec)
     eq_(['artifact.json', 'bar', 'build.json', 'build.log.gz', 'hello', 'id'],
         sorted(os.listdir(path)))
-    with file(pjoin(path, 'hello')) as f:
+    with open(pjoin(path, 'hello')) as f:
         got = sorted(f.readlines())
         eq_(''.join(got), dedent('''\
         .
@@ -131,14 +131,14 @@ def test_basic(tempdir, sc, bldr, config):
         ./subdir
         ./subdir/build.sh
         '''))
-    with closing(gzip.open(pjoin(path, 'build.log.gz'))) as f:
+    with closing(gzip.open(pjoin(path, 'build.log.gz'), 'rt')) as f:
         s = f.read()
         assert 'hi stdout path=[] extra' in s
         assert 'hi stderr' in s
 
     # files section
     assert 'foo' in os.listdir(pjoin(path, 'bar'))
-    with file(pjoin(path, 'bar', 'foo')) as f:
+    with open(pjoin(path, 'bar', 'foo')) as f:
         assert f.read() == 'foobarfoo'
 
 @fixture()
@@ -168,17 +168,19 @@ def test_failing_build_and_multiple_commands(tempdir, sc, bldr, config):
                     {"cmd": [which("false")]},
                 ]
            }}
+    e_first = None
     try:
         bldr.ensure_present(spec, config, keep_build='error')
-    except BuildFailedError, e_first:
-        assert e_first.wrapped[0] is subprocess.CalledProcessError
-        assert os.path.exists(pjoin(e_first.build_dir, 'foo2'))
+    except BuildFailedError as e:
+        assert e.wrapped[0] is subprocess.CalledProcessError
+        assert os.path.exists(pjoin(e.build_dir, 'foo2'))
+        e_first = e
     else:
         assert False
 
     try:
         bldr.ensure_present(spec, config, keep_build='never')
-    except BuildFailedError, e_second:
+    except BuildFailedError as e_second:
         assert e_second.wrapped[0] is subprocess.CalledProcessError
         assert e_first.build_dir != e_second.build_dir
         assert not os.path.exists(pjoin(e_second.build_dir))
@@ -205,7 +207,7 @@ def test_hash_prefix_collision(tempdir, sc, bldr, config):
     patched_id = artifact_id[:-1] + 'x'
     with assert_raises(IllegalBuildStoreError) as e:
         bldr.resolve(patched_id)
-    assert "collide in first 12 chars" in e.exc_val.message
+    assert "collide in first 12 chars" in e.exc_val.args[0]
 
 
 @fixture()
@@ -231,9 +233,9 @@ def test_source_unpack_options(tempdir, sc, bldr, config):
             },
            }
     name, path = bldr.ensure_present(spec, config)
-    with file(pjoin(path, 'a')) as f:
+    with open(pjoin(path, 'a')) as f:
         assert f.read() == "Welcome!"
-    with file(pjoin(path, 'b')) as f:
+    with open(pjoin(path, 'b')) as f:
         assert f.read() == "Welcome!"
 
 
@@ -266,7 +268,7 @@ def build_mock_packages(builder, config, packages, virtuals={}, name_to_artifact
         artifact, path = builder.ensure_present(spec, config, virtuals=virtuals)
         name_to_artifact[pkg.name] = (artifact, path)
 
-        with file(pjoin(path, 'deps')) as f:
+        with open(pjoin(path, 'deps')) as f:
             for line, dep in zip(f.readlines(), pkg.deps):
                 d, artifact_id, abspath = line.split()
                 assert d == dep.name

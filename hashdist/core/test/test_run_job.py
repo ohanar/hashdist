@@ -12,7 +12,7 @@ from .. import run_job
 from .test_build_store import fixture as build_store_fixture
 
 from .utils import which, logger as test_logger, assert_raises
-from hashdist.util.logger_fixtures import log_capture
+from ...util.logger_fixtures import log_capture
 
 
 env_to_stderr = [sys.executable, '-c',
@@ -119,10 +119,11 @@ def test_imports(tempdir, sc, build_store, cfg):
     with log_capture('build') as logger:
         ret_env = run_job.run_job(logger, build_store, doc, {},
                                   '<no-artifact>', virtuals, tempdir, cfg)
-    eq_(["FOOSOFT_DIR=%r" % foo_path,
-         "FOOSOFT_ID=%r" % foo_id,
-         "BARSOFT_DIR=%r" % bar_path,
-         "BARSOFT_ID=%r" % bar_id],
+    print(type(foo_id))
+    eq_([u"FOOSOFT_DIR='%s'" % foo_path,
+         u"FOOSOFT_ID='%s'" % foo_id,
+         u"BARSOFT_DIR='%s'" % bar_path,
+         u"BARSOFT_ID='%s'" % bar_id],
         filter_out(logger.lines))
 
 @build_store_fixture()
@@ -136,14 +137,14 @@ def test_inputs(tempdir, sc, build_store, cfg):
                  {"text": ["import sys",
                            "import json",
                            "with open(sys.argv[1]) as f:"
-                           "    print json.load(f)['foo']"]},
+                           "    print(json.load(f)['foo'])"]},
                  {"json": {"foo": "Hello1"}}
                  ]
              },
             {
              "env": {"LD_LIBRARY_PATH": os.environ.get("LD_LIBRARY_PATH", "")},
              "cmd": [sys.executable, "$in0"],
-             "inputs": [{"string": "import sys\nprint 'Hello2'"}]
+             "inputs": [{"string": "import sys\nprint('Hello2')"}]
              },
             ]
         }
@@ -187,7 +188,7 @@ def test_script_redirect(tempdir, sc, build_store, cfg):
         ]}
     run_job.run_job(test_logger, build_store, job_spec,
                     {"echo": "/bin/echo"}, '<no-artifact>', {}, tempdir, cfg)
-    with file(pjoin(tempdir, 'foo')) as f:
+    with open(pjoin(tempdir, 'foo')) as f:
         assert f.read() == 'hi\n'
 
 @build_store_fixture()
@@ -195,7 +196,7 @@ def test_attach_log(tempdir, sc, build_store, cfg):
     if 'linux' not in sys.platform:
         raise SkipTest('Linux only')
 
-    with file(pjoin(tempdir, 'hello'), 'w') as f:
+    with open(pjoin(tempdir, 'hello'), 'w') as f:
         f.write('hello from pipe')
     job_spec = {
         "commands": [

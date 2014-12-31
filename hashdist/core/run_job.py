@@ -197,14 +197,15 @@ from pprint import pformat
 import tempfile
 import errno
 import select
-from StringIO import StringIO
 import json
 from pprint import pprint
 
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG
-from hashdist.util.logger_setup import suppress_log_info, sublevel_added
+from ..util.logger_setup import suppress_log_info, sublevel_added
 
 from .common import working_directory
+
+from ..deps.six import StringIO
 
 LOG_PIPE_BUFSIZE = 4096
 
@@ -220,7 +221,7 @@ class JobFailedError(RuntimeError):
 def substitute(logger, x, env):
     try:
         return substitute(x, env)
-    except KeyError, e:
+    except KeyError as e:
         msg = 'No such environment variable: %s' % str(e)
         logger.error(msg)
         raise ValueError(msg)
@@ -427,7 +428,7 @@ class CommandTreeExecution(object):
     def substitute(self, x, env):
         try:
             return substitute(x, env)
-        except KeyError, e:
+        except KeyError as e:
             msg = 'No such environment variable: %s' % str(e)
             self.logger.error(msg)
             raise ValueError(msg)
@@ -589,7 +590,7 @@ class CommandTreeExecution(object):
                     raise NotImplementedError("Cannot currently use stream re-direction to write to "
                                               "a log-pipe (doing the write from a "
                                               "sub-process is OK)")
-                with file(stdout_filename, 'a') as stdout:
+                with open(stdout_filename, 'a') as stdout:
                     func(args, node_env, stdout_to=stdout)
 
             else:
@@ -622,7 +623,7 @@ class CommandTreeExecution(object):
             logger.info('  ' + line)
         try:
             self.logged_check_call(args, env, stdout_to)
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             logger.error("command failed (code=%d); raising" % e.returncode)
             raise
 
@@ -671,7 +672,7 @@ class CommandTreeExecution(object):
         try:
             rcfile = pjoin(tmpdir, 'env')
             with open(rcfile, 'w') as f:
-                for key, value in env.iteritems():
+                for key, value in env.items():
                     f.write("export %s='%s'\n" % (key, value))
 
             with working_directory(env['PWD']):
@@ -702,7 +703,7 @@ class CommandTreeExecution(object):
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     close_fds=True)
-        except OSError, e:
+        except OSError as e:
             if e.errno == errno.ENOENT:
                 # fix error message up a bit since the situation is so confusing
                 if '/' in args[0]:
@@ -730,48 +731,57 @@ class CommandTreeExecution(object):
         logger = self.logger
         stdout_fd, stderr_fd = proc.stdout.fileno(), proc.stderr.fileno()
         fds = [stdout_fd, stderr_fd]
-        encoding = sys.stderr.encoding
+
+        stderr_encoding = sys.stderr.encoding
+        if stderr_encoding is None:
+            stderr_encoding = 'utf-8'
+
+        if stdout_to is not None:
+            try:
+                stdout_encoding = stdout_to.encoding
+            except AttributeError:
+                stdout_encoding = 'utf-8'
+            if stdout_encoding is None:
+                stdout_encoding = 'utf-8'
+
         for fd in fds: # set O_NONBLOCK
             fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
 
-        buffers = {stdout_fd: '', stderr_fd: ''}
+        buffers = {stdout_fd: b'', stderr_fd: b''}
         while True:
             select.select(fds, [], [], 0.05)
             for fd in fds:
                 try:
                     s = os.read(fd, LOG_PIPE_BUFSIZE)
-                except IOError, e:
+                except IOError as e:
                     if e.errno != errno.EAGAIN:
                         raise
-                    s = ''
-                except OSError, e:
+                    s = b''
+                except OSError as e:
                     if e.errno != errno.EAGAIN:
                         raise
-                    s = ''
-                if s != '':
+                    s = b''
+                if s != b'':
                     if stdout_to is not None and fd == stdout_fd:
                         # Just forward
-                        stdout_to.write(s)
+                        stdout_to.write(s.decode(stdout_encoding))
                     else:
                         buffers[fd] += s
                         lines = buffers[fd].splitlines(True) # keepends=True
-                        if lines[-1][-1] != '\n':
+                        if lines[-1][-1] != b'\n':
                             buffers[fd] = lines[-1]
                             del lines[-1]
                         else:
-                            buffers[fd] = ''
+                            buffers[fd] = b''
                         for line in lines:
-                            if line[-1] == '\n':
+                            if line[-1] == b'\n':
                                 line = line[:-1]
-                            if encoding:
-                                logger.info(line.decode(encoding))
-                            else:
-                                logger.info(line)
+                            logger.info(line.decode(stderr_encoding))
             if proc.poll() is not None:
                 break
         for buf in buffers.values():
-            if buf != '':
-                logger.info(buf)
+            if buf != b'':
+                logger.info(buf.decode(stderr_encoding))
         return proc.wait()
 
     def _log_process_with_logpipes(self, proc, stdout_to):
@@ -786,9 +796,21 @@ class CommandTreeExecution(object):
         poller.register(stdout_fd)
         poller.register(stderr_fd)
 
+        stderr_encoding = sys.stderr.encoding
+        if stderr_encoding is None:
+            stderr_encoding = 'utf-8'
+
+        if stdout_to is not None:
+            try:
+                stdout_encoding = stdout_to.encoding
+            except AttributeError:
+                stdout_encoding = 'utf-8'
+            if stdout_encoding is None:
+                stdout_encoding = 'utf-8'
+
         # Set up { fd : (logger, level) }
         loggers = {stdout_fd: (None, INFO), stderr_fd: (None, INFO)}
-        buffers = {stdout_fd: '', stderr_fd: ''}
+        buffers = {stdout_fd: b'', stderr_fd: b''}
 
         # The FIFO pipes are a bit tricky as they need to the re-opened whenever
         # any client closes. This also modified the loggers dict and fd_to_logpipe
@@ -803,7 +825,7 @@ class CommandTreeExecution(object):
             # the reading code
             fcntl.fcntl(fd, fcntl.F_SETFL, os.O_RDONLY)
             loggers[fd] = (header, level)
-            buffers[fd] = ''
+            buffers[fd] = b''
             fd_to_logpipe[fd] = fifo_filename
             poller.register(fd)
 
@@ -813,7 +835,7 @@ class CommandTreeExecution(object):
                 # flush buffer in case last line not terminated by '\n'
                 header, level = loggers[fd]
                 with sublevel_added(logger, header):
-                    logger.log(level, buf)
+                    logger.log(level, buf.decode(stderr_encoding))
             del buffers[fd]
 
         def close_fifo(fd):
@@ -856,30 +878,31 @@ class CommandTreeExecution(object):
                     if stdout_to is not None and fd == stdout_fd:
                         # Just forward
                         buf = os.read(fd, LOG_PIPE_BUFSIZE)
-                        stdout_to.write(buf)
+                        stdout_to.write(buf.decode(stdout_encoding))
                     else:
                         # append new bytes to what's already been read on this fd; and
                         # emit any completed lines
                         new_bytes = os.read(fd, LOG_PIPE_BUFSIZE)
-                        assert new_bytes != '' # after all, we did poll
+                        assert new_bytes != b'' # after all, we did poll
                         buffers[fd] += new_bytes
                         lines = buffers[fd].splitlines(True) # keepends=True
-                        if lines[-1][-1] != '\n':
+                        if lines[-1][-1] != b'\n':
                             buffers[fd] = lines[-1]
                             del lines[-1]
                         else:
-                            buffers[fd] = ''
+                            buffers[fd] = b''
                         # have list of lines, emit them to logger
                         header, level = loggers[fd]
                         for line in lines:
-                            line = line.rstrip('\n')
+                            line = line.rstrip(b'\n')
                             with sublevel_added(logger, header):
-                                logger.log(level, line)
+                                logger.log(level, line.decode(stderr_encoding))
 
         flush_buffer(stderr_fd)
         flush_buffer(stdout_fd)
-        for fd in fd_to_logpipe.keys():
-            close_fifo(fd)
+        fd_itr = iter(fd_to_logpipe)
+        while fd_to_logpipe:
+            close_fifo(next(fd_itr))
 
         retcode = proc.wait()
         return retcode
@@ -889,7 +912,7 @@ class CommandTreeExecution(object):
         fifo_filename = self.log_fifo_filenames.get((sublogger_name, level), None)
         if fifo_filename is None:
             fifo_filename = pjoin(self.temp_dir, "logpipe-%s-%s" % (sublogger_name, level_str))
-            os.mkfifo(fifo_filename, 0600)
+            os.mkfifo(fifo_filename, 0o600)
             self.log_fifo_filenames[sublogger_name, level] = fifo_filename
         sys.stdout.write(fifo_filename)
 

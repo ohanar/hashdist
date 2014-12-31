@@ -84,6 +84,7 @@ from .fileutils import (silent_makedirs, silent_unlink, silent_relative_symlink,
 
 from .ant_glob import ant_iglob
 
+from ..deps.six import reraise
 
 def expandtemplate(s, env):
     return Template(s).substitute(env)
@@ -111,8 +112,8 @@ def make_launcher(src, dst, launcher_program):
     if os.path.islink(src):
         type = 'symlink'
     elif os.stat(src).st_mode & 0o111:
-        with open(src) as f:
-            if f.read(2) != '#!':
+        with open(src, 'rb') as f:
+            if f.read(2) != b'#!':
                 type = 'program'
 
     if type in 'symlink':
@@ -264,10 +265,10 @@ def execute_links_dsl(rules, env={}, launcher_program=None, logger=None):
             else:
                 action[0](*action[1:])
             logger.debug(action_desc)
-        except OSError, e:
+        except OSError as e:
             # improve error message to include operation attempted
             msg = str(e) + " in " + action_desc
             logger.error(msg)
-            exc_type, exc_val, exc_tb = sys.exc_info()
-            raise OSError, OSError(e.errno, msg), exc_tb
+            _, _, exc_tb = sys.exc_info()
+            reraise(OSError, OSError(e.errno, msg), exc_tb)
 

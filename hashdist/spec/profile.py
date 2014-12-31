@@ -15,8 +15,6 @@ import shutil
 from os.path import join as pjoin
 import re
 import glob
-from urlparse import urlsplit
-from urllib import urlretrieve
 import posixpath
 
 from ..formats.marked_yaml import load_yaml_from_file, is_null, marked_yaml_load
@@ -24,6 +22,8 @@ from .utils import substitute_profile_parameters
 from .. import core
 from .exceptions import ProfileError, PackageError
 
+from ..deps.six.moves import urllib
+from ..deps.six import string_types
 
 GLOBALS_LST = [len]
 GLOBALS = dict((entry.__name__, entry) for entry in GLOBALS_LST)
@@ -371,7 +371,7 @@ class FileResolver(object):
         ``<repo_name>/some/path``-convention), or None if no file was
         found.
         """
-        if isinstance(filenames, basestring):
+        if isinstance(filenames, string_types):
             filenames = [filenames]
         for overlay in self.search_dirs:
             for p in filenames:
@@ -414,7 +414,7 @@ class FileResolver(object):
         * The full qualified name is the filename that was mattched by
           the pattern.
         """
-        if isinstance(patterns, basestring):
+        if isinstance(patterns, string_types):
             patterns = [patterns]
         result = {}
         # iterate from bottom and up, so that newer matches overwrites older ones in dict
@@ -454,10 +454,10 @@ def load_and_inherit_profile(checkouts, include_doc, cwd=None, override_paramete
         cwd = os.getcwd()
 
     def resolve_profile(cwd, p):
-        split_url = urlsplit(p)
+        split_url = urllib.parse.urlsplit(p)
         if split_url.scheme != '':
             base_name = posixpath.basename(split_url.path)
-            urlretrieve(p, base_name)
+            urllib.request.urlretrieve(p, base_name)
             p = pjoin(cwd, base_name)
         elif not os.path.isabs(p):
             p = pjoin(cwd, p)
@@ -508,9 +508,9 @@ def load_and_inherit_profile(checkouts, include_doc, cwd=None, override_paramete
         doc.setdefault('parameters', {}).update(override_parameters)
     parameters = doc.setdefault('parameters', {})
 
-    overridden = parameters.keys()
+    overridden = frozenset(parameters.keys())
     for parent_doc in parents:
-        for k, v in parent_doc.get('parameters', {}).iteritems():
+        for k, v in parent_doc.get('parameters', {}).items():
             if k not in overridden:
                 if k in parameters:
                     raise ProfileError(doc, 'two base profiles set same parameter %s, please set it '
@@ -520,10 +520,10 @@ def load_and_inherit_profile(checkouts, include_doc, cwd=None, override_paramete
     # Merge packages section
     packages = {}
     for parent_doc in parents:
-        for pkgname, settings in parent_doc.get('packages', {}).iteritems():
+        for pkgname, settings in parent_doc.get('packages', {}).items():
             packages.setdefault(pkgname, {}).update(settings)
 
-    for pkgname, settings in doc.get('packages', {}).iteritems():
+    for pkgname, settings in doc.get('packages', {}).items():
         if is_null(settings):
             settings = {}
         packages.setdefault(pkgname, {}).update(settings)

@@ -21,7 +21,7 @@ from ..core.source_cache import RemoteFetchError
 
 import logging
 logger = logging.getLogger()
-from hashdist.util.logger_setup import set_log_level, configure_logging, has_error_occurred
+from ..util.logger_setup import set_log_level, configure_logging, has_error_occurred
 
 try:
     import argparse

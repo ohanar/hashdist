@@ -15,7 +15,7 @@ from nose.tools import eq_
 from ..fileutils import silent_makedirs
 
 import logging
-from hashdist.util.logger_setup import configure_logging
+from ...util.logger_setup import configure_logging
 
 from os.path import join as pjoin
 
@@ -161,6 +161,7 @@ def make_temporary_tarball(files):
                         archive.add(pjoin(dirpath, fname))
     finally:
         shutil.rmtree(tmp_d)
-    with file(archive_filename) as f:
+    with open(archive_filename, 'rb') as f:
         key = 'tar.gz:' + format_digest(hashlib.sha256(f.read()))
+    print(key)
     return container_dir, archive_filename, key

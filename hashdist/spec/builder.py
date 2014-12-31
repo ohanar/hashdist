@@ -86,7 +86,7 @@ class ProfileBuilder(object):
 
     def get_ready_list(self):
         ready = []
-        for name, pkg in self._package_specs.iteritems():
+        for name, pkg in self._package_specs.items():
             if name in self._built:
                 continue
             if all(dep_name in self._built for dep_name in pkg.build_deps):
@@ -107,7 +107,7 @@ class ProfileBuilder(object):
         Return ``{pkgname: (build_spec, is_built)}``.
         """
         report = dict((pkgname, (build_spec, pkgname in self._built))
-                      for pkgname, build_spec in self._build_specs.iteritems())
+                      for pkgname, build_spec in self._build_specs.items())
         return report
 
     def get_profile_build_spec(self, link_type='relative', write_protect=True):

@@ -17,11 +17,11 @@ from nose import SkipTest
 
 def test_execute_files_dsl():
     def assertions(dirname):
-        with file(pjoin(dirname, 'bin', 'hit')) as f:
+        with open(pjoin(dirname, 'bin', 'hit')) as f:
             x = f.read().strip()
             assert x == ("sys.path.insert(0, sys.path.join('%s', 'lib'))" % dirname)
-        assert os.stat(pjoin(dirname, 'bin', 'hit')).st_mode & 0100
-        with file(pjoin(dirname, 'doc.json')) as f:
+        assert os.stat(pjoin(dirname, 'bin', 'hit')).st_mode & 0o100
+        with open(pjoin(dirname, 'doc.json')) as f:
             assert json.load(f) == {"foo": "bar"}
 
     with temp_working_dir() as d:
@@ -48,7 +48,7 @@ def test_execute_files_dsl():
             build_tools.execute_files_dsl([doc[0]], dict(ARTIFACT='A'))
         with assert_raises(OSError):
             build_tools.execute_files_dsl([doc[1]], dict(ARTIFACT='A'))
-        
+
         # absolute paths
         with temp_working_dir() as another_dir:
             build_tools.execute_files_dsl(doc, dict(ARTIFACT=pjoin(d, 'B')))
@@ -57,14 +57,14 @@ def test_execute_files_dsl():
         # test with a plain file and relative target
         doc = [{"target": "foo/bar/plainfile", "text": ["$ARTIFACT"]}]
         build_tools.execute_files_dsl(doc, dict(ARTIFACT='ERROR_IF_USED'))
-        with file(pjoin('foo', 'bar', 'plainfile')) as f:
+        with open(pjoin('foo', 'bar', 'plainfile')) as f:
             assert f.read() == '$ARTIFACT'
-        assert not (os.stat(pjoin('foo', 'bar', 'plainfile')).st_mode & 0100)
+        assert not (os.stat(pjoin('foo', 'bar', 'plainfile')).st_mode & 0o100)
 
         # test with a file in root directory
         doc = [{"target": "plainfile", "text": ["bar"]}]
         build_tools.execute_files_dsl(doc, {})
-        with file(pjoin('plainfile')) as f:
+        with open(pjoin('plainfile')) as f:
             assert f.read() == 'bar'
 
 class MockBuildStore:
@@ -83,7 +83,7 @@ def test_python_shebang(d):
 
     makedirs(pjoin(d, 'my-python', 'bin'))
     makedirs(pjoin(d, 'profile', 'bin'))
-    
+
     abs_interpreter = pjoin(d, 'my-python', 'bin', 'python')
     script_file = pjoin(d, 'profile', 'bin', 'myscript')
     os.symlink(sys.executable, abs_interpreter)
@@ -91,15 +91,15 @@ def test_python_shebang(d):
 
     script = dedent('''\
     #! %s
-    
+
     # This is a comment
     # """
-    
+
     u"""A test script
     """
     import sys
-    print sys.executable
-    print ':'.join(sys.argv)
+    print(sys.executable)
+    print(':'.join(sys.argv))
     ''') % abs_interpreter
 
     # Should be no difference when path is not in build store
@@ -115,14 +115,14 @@ def test_python_shebang(d):
 
     with open(script_file, 'w') as f:
         f.write(new_script)
-        
+
     os.chmod(script_file, 0o755)
     os.symlink('profile/bin/myscript', 'scriptlink')
 
     def runit(entry_point):
         p = Popen([entry_point, "a1 a2", "b "], stdout=PIPE)
         out, _ = p.communicate()
-        outlines = out.splitlines()
+        outlines = out.decode('utf-8').splitlines()
         assert p.wait() == 0
         eq_("%s:a1 a2:b " % entry_point, outlines[1])
         return outlines[0]

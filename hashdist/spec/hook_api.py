@@ -7,13 +7,14 @@ Hook files are re-loaded for every package build, and so decorators etc.
 are run again. The machinery used to HashDist to load hook files is
 found in .hook.
 """
-import types
 from .utils import substitute_profile_parameters
 from .exceptions import ProfileError, IllegalHookFileError
 
+from ..deps.six import string_types
+
 class PackageBuildContext(object):
     def __init__(self, package_name, dependency_dir_vars, parameters):
-        import hook
+        from . import hook
         self._build_stage_handlers = {'bash': hook.bash_handler}
         self._modules = []
         self._bundled_files = {}
@@ -58,12 +59,12 @@ class PackageBuildContext(object):
         a substitution as described in `sub`. A deep copy is returned.
         """
         if isinstance(doc, dict):
-            return dict((key, self.deep_sub(value)) for key, value in doc.iteritems())
+            return dict((key, self.deep_sub(value)) for key, value in doc.items())
         elif isinstance(doc, (list, tuple)):
             return [self.deep_sub(item) for item in doc]
-        elif isinstance(doc, basestring):
+        elif isinstance(doc, string_types):
             return self.sub(doc)
-        elif isinstance(doc, (int, bool, float, types.NoneType)):
+        elif isinstance(doc, (int, bool, float, type(None))):
             return doc
         elif (not doc):
             return None
@@ -96,7 +97,7 @@ def build_stage(handler_name=None):
         handler_name_ = handler_name
         if handler_name_ is None:
             handler_name_ = func.__name__
-        import hook
+        from . import hook
         hook.current_package_context.register_build_stage_handler(handler_name_, func)
         return func
     return decorator

@@ -14,7 +14,7 @@ def test_hit_cli_artifact(tempdir, sc, bldr, config):
 
     eq_(sorted(os.listdir(hit_path)),
         ['artifact.json', 'bin', 'build.json', 'build.log.gz', 'id', 'pypkg'])
-    with file(pjoin(hit_path, 'bin', 'hit')) as f:
+    with open(pjoin(hit_path, 'bin', 'hit')) as f:
         hit_bin = f.read()
     assert hit_bin.startswith('#!' + os.path.realpath(sys.executable))
 
