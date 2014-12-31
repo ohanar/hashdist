@@ -4,7 +4,7 @@ Installing HashDist for use in software distributions
 Dependencies
 ------------
 
-HashDist depends on Python 2.6+.
+HashDist depends on Python 2.6, 2.7, or 3.3+ as well as git.
 
 A bootstrap script should be made to facilitate installation everywhere...
 
@@ -18,7 +18,7 @@ in ``~/.hashdist`` which are shared between PyHPC and QSnake, while
 Sage has its own HashDist store in ``~/path/to/sage/store``.
 
 .. note::
-    
+
     The main point of sharing HashDist is actually to share it
     between different versions of the same distribution; i.e., two
     different QSnake versions may be located in different paths on disk,
