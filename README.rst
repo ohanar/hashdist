@@ -45,48 +45,48 @@ Since HashDist is used as a standalone installation tool, some very small
 dependencies are bundled under ``hashdist/deps``. The copyright of these belong to the
 respective authors; the licenses are included in LICENSE.txt.
 
-    * argparse
-        * version: 1.2.1
+* argparse
+    * version: 1.2.1
 
-    * jsonschema
-        * version: 2.1.0
-        * author: julian berman
-        * license: mit
-        * github: https://github.com/Julian/jsonschema
+* jsonschema
+    * version: 2.1.0
+    * author: julian berman
+    * license: mit
+    * github: https://github.com/Julian/jsonschema
 
-    * sh
-        * location: hashdist/deps/sh:
-        * version: commit abb0ba6
-        * main author: Andrew Moffat
-        * license: MIT
-        * homepage: https://github.com/amoffat/sh
+* sh
+    * location: hashdist/deps/sh:
+    * version: commit abb0ba6
+    * main author: Andrew Moffat
+    * license: MIT
+    * homepage: https://github.com/amoffat/sh
 
-    * PyYAML
-        * location: hashdist/deps/yaml{2,3}
-        * version: 3.11
-        * main author: Kirill Simonov
-        * license: MIT
-        * homepage:  https://bitbucket.org/xi/pyyaml/
-        * additional patches: (see git log on hashdist/deps/yaml):
-            * http://pyyaml.org/ticket/128
-            * Patch 'yaml' to take user-readable filename
+* PyYAML
+    * location: hashdist/deps/yaml{2,3}
+    * version: 3.11
+    * main author: Kirill Simonov
+    * license: MIT
+    * homepage:  https://bitbucket.org/xi/pyyaml/
+    * additional patches: (see git log on hashdist/deps/yaml):
+        * http://pyyaml.org/ticket/128
+        * Patch 'yaml' to take user-readable filename
 
-    * distlib
-        * location: hashdist/deps/distlib
-        * version: commit 5e64fd139851
-        * authors: see distlib-CONTRIBUTORS.txt
-        * homepage: https://bitbucket.org/vinay.sajip/distlib
+* distlib
+    * location: hashdist/deps/distlib
+    * version: commit 5e64fd139851
+    * authors: see distlib-CONTRIBUTORS.txt
+    * homepage: https://bitbucket.org/vinay.sajip/distlib
 
-    * six
-        * location: hashdist/deps/six.py
-        * version: 1.8.0
-        * main author: Benjamin Peterson
-        * license: MIT
-        * homepage: https://pypi.python.org/pypi/six/
+* six
+    * location: hashdist/deps/six.py
+    * version: 1.8.0
+    * main author: Benjamin Peterson
+    * license: MIT
+    * homepage: https://pypi.python.org/pypi/six/
 
-    * numpydoc
-        * location: doc/ext/numpydoc
-        * version: 0.5
-        * main author: Pauli Virtanen
-        * license: BSD
-        * homepage: https://github.com/numpy/numpydoc
+* numpydoc
+    * location: doc/ext/numpydoc
+    * version: 0.5
+    * main author: Pauli Virtanen
+    * license: BSD
+    * homepage: https://github.com/numpy/numpydoc
